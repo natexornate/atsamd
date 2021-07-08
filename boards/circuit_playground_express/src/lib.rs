@@ -1,132 +1,144 @@
 #![no_std]
 
-extern crate atsamd_hal as hal;
+#[cfg(feature = "rt")]
+pub use cortex_m_rt::entry;
 
-use hal::prelude::*;
-use hal::*;
+pub use atsamd_hal as hal;
+pub use embedded_hal as ehal;
+pub use hal::pac;
 
-pub use hal::common::*;
+// use hal::clock::GenericClockController;
+// //use hal::sercom::v2::{spi, Sercom3};
+// use hal::sercom::I2CMaster5;
+// use hal::time::Hertz;
 
-pub use hal::target_device as pac;
-
-use gpio::{Floating, Input, Output, Port, PushPull};
-use hal::clock::GenericClockController;
-use hal::sercom::{I2CMaster5, PadPin, SPIMaster3};
-use hal::time::Hertz;
-
-define_pins!(
-    /// Maps the pins to their arduino names and
-    /// the numbers printed on the board.
-    struct Pins,
-    target_device: target_device,
+hal::bsp_pins!(
     /// Pin 0, rx. Also analog input (A6)
-    pin rx = b9,
+    PB09 {
+        name: a6
+        aliases: {
+            AlternateC: UartRx
+        }
+    }
     /// Pin 1, tx. Also analog input (A7)
-    pin tx = b8,
+    PB08 {
+        name: a7
+        aliases: {
+            AlternateC: UartTx
+        }
+    }
     /// Pin 4, button A.
-    pin d4 = a28,
+    PA28 {
+        name: d4
+    }
     /// Pin 5, button B.
-    pin d5 = a14,
+    PA14 {
+        name: d5
+    }
     /// Pin 7, slide switch.
-    pin d7 = a15,
+    PA15 {
+        name: d7
+    }
     /// Pin 11, speaker enable.
-    pin d11 = a30,
+    PA30 {
+        name: d11
+    }
     /// Digital pin number 13, which is also attached to the red LED. PWM capable.
-    pin d13 = a17,
+    PA17 {
+        name: d13
+        aliases: {
+            PushPullOutput: RedLed
+        }
+    }
     /// The I2C SDA. Also D2 and A5.
-    pin sda = b2,
+    PB02 {
+        name: sda
+        aliases: {
+            AlternateC: Sda
+        }
+    }
     /// The I2C SCL. Also D3 and A4
-    pin scl = b3,
+    PB03 {
+        name: scl
+        aliases: {
+            AlternateC: Scl
+        }
+    }
 
     /// The data line attached to the neopixel. Also D8.
-    pin neopixel = b23,
+    PB23 {
+        name: neopixel
+    }
 
     /// The line attached to the speaker. Also D12 and A0.
-    pin speaker = a2,
+    PA02 {
+        name: speaker
+    }
 
     /// The SPI SCK. Also D6 and A1
-    pin sck = a5,
+    PA05 {
+        name: sclk
+        aliases: {
+            AlternateD: Sclk
+        }
+    }
     /// The SPI MOSI. Also D10 and A3
-    pin mosi = a7,
+    PA07 {
+        name: mosi
+        aliases: {
+            AlternateD: Mosi
+        }
+    }
     /// The SPI MISO. Also D9 and A2
-    pin miso = a6,
+    PA06 {
+        name: miso
+        aliases: {
+            AlternateD: Miso
+        }
+    }
 
     /// The SCK pin attached to the on-board SPI flash
-    pin flash_sck = a21,
+    PA21 {
+        name: flash_sclk
+    }
     /// The MOSI pin attached to the on-board SPI flash
-    pin flash_mosi = a20,
+    PA20 {
+        name: flash_mosi
+    }
     /// The MISO pin attached to the on-board SPI flash
-    pin flash_miso = a16,
+    PA16 {
+        name: flash_miso
+    }
     /// The CS pin attached to the on-board SPI flash
-    pin flash_cs = b22,
+    PB22 {
+        name: flash_cs
+    }
 
-    pin accel_sda = a0,
-    pin accel_scl = a1,
+    PA00 {
+        name: accel_sda
+    }
+    PA01 {
+        name: accel_scl
+    }
 );
 
-/// Convenience for accessing the on-board SPI Flash device.
-/// This powers up SERCOM5 and configures it for use as an
-/// SPI Master.
-pub fn flash_spi_master(
-    clocks: &mut GenericClockController,
-    sercom3: pac::SERCOM3,
-    pm: &mut pac::PM,
-    sck: gpio::Pa21<Input<Floating>>,
-    mosi: gpio::Pa20<Input<Floating>>,
-    miso: gpio::Pa16<Input<Floating>>,
-    cs: gpio::Pb22<Input<Floating>>,
-    port: &mut Port,
-) -> (
-    SPIMaster3<
-        hal::sercom::Sercom3Pad0<gpio::Pa16<gpio::PfD>>,
-        hal::sercom::Sercom3Pad2<gpio::Pa20<gpio::PfD>>,
-        hal::sercom::Sercom3Pad3<gpio::Pa21<gpio::PfD>>,
-    >,
-    gpio::Pb22<Output<PushPull>>,
-) {
-    let gclk0 = clocks.gclk0();
-    let flash = SPIMaster3::new(
-        &clocks.sercom3_core(&gclk0).unwrap(),
-        48.mhz(),
-        hal::hal::spi::Mode {
-            phase: hal::hal::spi::Phase::CaptureOnFirstTransition,
-            polarity: hal::hal::spi::Polarity::IdleLow,
-        },
-        sercom3,
-        pm,
-        (miso.into_pad(port), mosi.into_pad(port), sck.into_pad(port)),
-    );
+// /// I2C master for the labelled SDA & SCL pins
+// pub type I2C = I2CMaster5<Sda, Scl>;
 
-    let mut cs = cs.into_push_pull_output(port);
-
-    // We’re confident that set_high won’t error here because on-board
-    // GPIO pins don’t error.
-    cs.set_high().unwrap();
-
-    (flash, cs)
-}
-
-/// Convenience for setting up the labelled SDA, SCL pins to
-/// operate as an I2C master running at the specified frequency.
-pub fn i2c_master<F: Into<Hertz>>(
-    clocks: &mut GenericClockController,
-    bus_speed: F,
-    sercom5: pac::SERCOM5,
-    pm: &mut pac::PM,
-    sda: gpio::Pb2<Input<Floating>>,
-    scl: gpio::Pb3<Input<Floating>>,
-    port: &mut Port,
-) -> I2CMaster5<
-    hal::sercom::Sercom5Pad0<gpio::Pb2<gpio::PfD>>,
-    hal::sercom::Sercom5Pad1<gpio::Pb3<gpio::PfD>>,
-> {
-    let gclk0 = clocks.gclk0();
-    I2CMaster5::new(
-        &clocks.sercom5_core(&gclk0).unwrap(),
-        bus_speed.into(),
-        sercom5,
-        pm,
-        sda.into_pad(port),
-        scl.into_pad(port),
-    )
-}
+// /// Convenience for setting up the labelled SDA, SCL pins to
+// /// operate as an I2C master running at the specified frequency.
+// pub fn i2c_master(
+//     clocks: &mut GenericClockController,
+//     baud: impl Into<Hertz>,
+//     sercom5: pac::SERCOM5,
+//     pm: &mut pac::PM,
+//     sda: impl Into<Sda>,
+//     scl: impl Into<Scl>,
+// ) -> I2C {
+//     let gclk0 = clocks.gclk0();
+//     let clock = &clocks.sercom5_core(&gclk0).unwrap();
+//     let baud = baud.into();
+//     let sda = sda.into();
+//     let scl = scl.into();
+//     I2CMaster5::new(clock, baud, sercom5, pm, sda, scl);
+// }
