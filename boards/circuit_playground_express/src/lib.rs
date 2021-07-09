@@ -7,10 +7,10 @@ pub use atsamd_hal as hal;
 pub use embedded_hal as ehal;
 pub use hal::pac;
 
-// use hal::clock::GenericClockController;
+use hal::clock::GenericClockController;
 // //use hal::sercom::v2::{spi, Sercom3};
-// use hal::sercom::I2CMaster5;
-// use hal::time::Hertz;
+use hal::sercom::I2CMaster1;
+use hal::time::Hertz;
 
 hal::bsp_pins!(
     /// Pin 0, rx. Also analog input (A6)
@@ -116,11 +116,38 @@ hal::bsp_pins!(
 
     PA00 {
         name: accel_sda
+        aliases: {
+            AlternateD: AccelSda
+        }
     }
     PA01 {
         name: accel_scl
+        aliases: {
+            AlternateD: AccelScl
+        }
     }
 );
+
+/// I2C master for the accelerometer SDA & SCL pins
+pub type I2C = I2CMaster1<AccelSda, AccelScl>;
+
+/// Convenience for setting up the accelerometer SDA, SCL pins to
+/// operate as an I2C master running at the specified frequency.
+pub fn i2c_master(
+    clocks: &mut GenericClockController,
+    baud: impl Into<Hertz>,
+    sercom1: pac::SERCOM1,
+    pm: &mut pac::PM,
+    sda: impl Into<AccelSda>,
+    scl: impl Into<AccelScl>,
+) -> I2C {
+    let gclk0 = clocks.gclk0();
+    let clock = &clocks.sercom1_core(&gclk0).unwrap();
+    let baud = baud.into();
+    let sda = sda.into();
+    let scl = scl.into();
+    I2CMaster1::new(clock, baud, sercom1, pm, sda, scl)
+}
 
 // /// I2C master for the labelled SDA & SCL pins
 // pub type I2C = I2CMaster5<Sda, Scl>;
