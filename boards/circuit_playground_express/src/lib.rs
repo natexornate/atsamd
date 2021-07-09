@@ -12,6 +12,9 @@ use hal::clock::GenericClockController;
 use hal::sercom::I2CMaster1;
 use hal::time::Hertz;
 
+#[cfg(feature = "usb")]
+use hal::usb::{usb_device::bus::UsbBusAllocator, UsbBus};
+
 hal::bsp_pins!(
     /// Pin 0, rx. Also analog input (A6)
     PB09 {
@@ -126,6 +129,21 @@ hal::bsp_pins!(
             AlternateD: AccelScl
         }
     }
+
+    PA24 {
+        /// The USB D- pad
+        name: usb_dm
+        aliases: {
+            AlternateG: UsbDm
+        }
+    }
+    PA25 {
+        /// The USB D+ pad
+        name: usb_dp
+        aliases: {
+            AlternateG: UsbDp
+        }
+    }
 );
 
 /// I2C master for the accelerometer SDA & SCL pins
@@ -169,3 +187,17 @@ pub fn i2c_master(
 //     let scl = scl.into();
 //     I2CMaster5::new(clock, baud, sercom5, pm, sda, scl);
 // }
+
+#[cfg(feature = "usb")]
+pub fn usb_allocator(
+    usb: pac::USB,
+    clocks: &mut GenericClockController,
+    pm: &mut pac::PM,
+    dm: impl Into<UsbDm>,
+    dp: impl Into<UsbDp>,
+) -> UsbBusAllocator<UsbBus> {
+    let gclk0 = clocks.gclk0();
+    let clock = &clocks.usb(&gclk0).unwrap();
+    let (dm, dp) = (dm.into(), dp.into());
+    UsbBusAllocator::new(UsbBus::new(clock, pm, dm, dp, usb))
+}

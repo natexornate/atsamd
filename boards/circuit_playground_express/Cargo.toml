@@ -23,6 +23,14 @@ path = "../../hal"
 version = "0.12"
 default-features = false
 
+[dependencies.usb-device]
+version = "0.2"
+optional = true
+
+[dependencies.usbd-serial]
+version = "0.1"
+optional = true
+
 [dev-dependencies]
 panic-halt = "0.2"
 cortex-m-rt = "0.6.12"
@@ -32,4 +40,12 @@ cortex-m-rt = "0.6.12"
 default = ["rt", "atsamd-hal/samd21g"]
 rt = ["cortex-m-rt", "atsamd-hal/samd21g-rt"]
 unproven = ["atsamd-hal/unproven"]
+usb = ["atsamd-hal/usb", "usb-device", "usbd-serial"]
 use_semihosting = []
+
+[[example]]
+name="blinky_basic"
+
+[[example]]
+name = "usb_echo"
+required-features = ["usb"]
